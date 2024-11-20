@@ -1,20 +1,28 @@
-
+import random
+from math import sqrt, ceil
 
 # lab4 - ex. 3
 # lab5 - ex. 5
 
-import random
+def prime_factors(n):
+    factors = []
 
-def prime_factors(p):
-    result = []
-    for d in range(2, (p) + 1):
-        if p % d == 0:
-            result.append(d)
-
-    return result
+    while n % 2 == 0:
+        factors.append(2)
+        n //= 2
+    
+    for i in range(3, ceil(sqrt(n)), 2):
+        while n % i == 0:
+            factors.append(i)
+            n //= i
+    
+    # if n is a prime number
+    if n > 2:
+        factors.append(n)
+    
+    return factors
 
 def find_generator(p):
-    # Factorize p-1
     phi = p - 1
     factors = prime_factors(phi)
 
@@ -22,7 +30,7 @@ def find_generator(p):
     for g in range(2, p):
         is_generator = True
         for q in factors:
-            # Check if g^(phi/q) ≠ 1 (mod p)
+            # Check if g^(phi/q) =/= 1 (mod p)
             if pow(g, phi // q, p) == 1:
                 is_generator = False
                 break
@@ -49,9 +57,6 @@ def MillerTest(t, n):
 
     return False
 
-
-# It returns false if n is composite and returns true if n is probably prime
-# k is an input parameter that determines the number of iterations
 # Miller-Rabin test
 def isPrime(n, k):
     if n <= 1 or n == 4:
@@ -63,43 +68,36 @@ def isPrime(n, k):
     while t % 2 == 0:
         t //= 2
 
-    for i in range(k):
+    for _ in range(k):
         if not MillerTest(t, n):
             return False
 
     return True
 
-def find_prime(iNumBits, iConfidence):
-    while(1):
-        p = random.randint( 2**(iNumBits-1), 2**(iNumBits) - 1 )
+# good for 4 letter words
+def generate_prime_hardcoded():
+    return 923501
 
-        while( p % 2 == 0 ):
-            p = random.randint( 2**(iNumBits-1), 2**(iNumBits) - 1 )
-        
-        while(not isPrime(p, iConfidence)):
-            p = random.randint( 2**(iNumBits-1), 2**(iNumBits) - 1 )
-            while( p % 2 == 0):
-                p = random.randint( 2**(iNumBits-1), 2**(iNumBits) - 1 )
+def generate_prime_bits(bits, prime_trial_count):
+    while(1):
+        p = random.randint( 2**(bits-1), 2**(bits) - 1 )
+
+        while(p % 2 != 0 and not isPrime(p, prime_trial_count)):
+            p = random.randint( 2**(bits-1), 2**(bits) - 1 )
 
         return p
-
-def find_prime(iNumBits, iConfidence):
-	while(1):
-		#generate potential prime randomly
-		p = random.randint( 2**(iNumBits-1), 2**(iNumBits) - 1 )
-		
-		while( p % 2 == 0 ):
-			p = random.randint( 2**(iNumBits-1), 2**(iNumBits) - 1 )
-
-		while( not isPrime(p, iConfidence) ):
-			p = random.randint( 2**(iNumBits-1), 2**(iNumBits) - 1 )
-			while( p % 2 == 0 ):
-			    p = random.randint( 2**(iNumBits-1), 2**(iNumBits) - 1 )
                       
-def generate_keys(keyBitsLength):
-    # p = find_prime(keyBitsLength, 4)
-    p = 6999213259363483493573619703 
-    p = 27355171113117131161195233 
+def generate_prime_interval(min_value, max_value, prime_trial_count):
+    while(1):
+        p = random.randint( min_value + 1, max_value )
+
+        while(p % 2 != 0 and not isPrime(p, prime_trial_count)):
+            p = random.randint( min_value + 1, max_value )
+
+        return p
+    
+def generate_keys(min_size_power):
+    p = generate_prime_interval(27 ** min_size_power, 27 ** (min_size_power + 1), 4)
     g = find_generator(p)
 
     a = random.randint(1, p - 2)
@@ -148,11 +146,12 @@ def decrypt(key, ciphertext):
     p, g, ga = public
     alpha, beta = ciphertext
 
+    # TODO: figure out why alpha is sometimes invertible (the program crashes 🙃)
     m = pow(alpha, -a, p) * beta % p
     
     return message_to_str(m)
 
-
-keys = generate_keys(8)
-encrypted = encrypt(keys[0], "hello")
+message = "hello"
+keys = generate_keys(len(message))
+encrypted = encrypt(keys[0], message)
 print(decrypt(keys, encrypted))
