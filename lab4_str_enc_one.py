@@ -96,6 +96,7 @@ class MessageConverter:
             self.chars[chars[i]] = i + 1
             self.char_vals[i + 1] = chars[i]
 
+        self.first_char = self.char_vals[1]
         self.length = len(chars) + 1
 
     def to_num(self, message_string: str) -> int:
@@ -112,17 +113,17 @@ class MessageConverter:
     def to_str(self, message_num: int) -> str:
         result = ""
 
-        if message_num == 0:
-            return "_"  # Return "_" if message is 0
-
         while message_num > 0:
             char_index = message_num % self.length
             message_num //= self.length
+
+            char_index = 1 if char_index == 0 else char_index 
+
             result = self.char_vals[char_index] + result
 
         return result
 
-    def split_string_into_chunks(self, string: str, size: int):
+    def split_string_into_chunks(self, string: str, size: int) -> list[str]:
         # Split the string into chunks
         chunks = [string[i:i + size] for i in range(0, len(string), size)]
 
@@ -130,6 +131,11 @@ class MessageConverter:
 
     def remove_padding(self, message: str) -> str:
         return message.rstrip # Remove trailing padding of spaces
+    
+    def accepts_input(self, input: str) -> bool:
+        for char in input:
+            if char not in self.char_vals.values():
+                raise ValueError("Provided string contains characters not defined in the alphabet")
 
 
 class ElGamalEncryption:
@@ -148,11 +154,21 @@ class ElGamalEncryption:
 
         return (p, g, pow(g, a, p)), a
 
+    def validateInput(self, message: str) -> str:
+        self.message_converter.accepts_input(message)
+
+        if len(message) % self.plaintext_block_length != 0:
+            correct_size = len(message) + (self.plaintext_block_length - len(message) % self.plaintext_block_length)
+            print(f"Input message cannot be evenly split into chunks -> it will be modified by adding blanks to the right")
+            return message.ljust(correct_size, self.message_converter.first_char)
+        
+        return message
+
     def encrypt(self, key, message):
         chunks = self.message_converter.split_string_into_chunks(message, self.plaintext_block_length)
 
         p, g, ga = key
-        ciphertext_chunks = []
+        ciphertext_chunks: list[(int, int)] = []
 
         for chunk in chunks:
             converted_message = self.message_converter.to_num(chunk)
@@ -161,16 +177,30 @@ class ElGamalEncryption:
             beta = converted_message * pow(ga, k, p) % p
             ciphertext_chunks.append((alpha, beta))
 
-        return ciphertext_chunks
+        encrypted_message = ""
 
-    def decrypt(self, key, ciphertext_chunks):
+        for chunk in ciphertext_chunks:
+            # alpha + beta to string (padded)
+            encrypted_message += self.message_converter.to_str(chunk[0]) + self.message_converter.to_str(chunk[1])
+
+        return encrypted_message, ciphertext_chunks
+
+    def decrypt(self, key, encrypted_message):
         public, a = key
         p, g, ga = public
 
         plaintext_chunks = []
-        for alpha, beta in ciphertext_chunks:
+        ciphertext_chunks = self.message_converter.split_string_into_chunks(encrypted_message[0], self.plaintext_block_length + 1)
+
+        for i in range(0, len(ciphertext_chunks) - 1, 2):
+            alpha, beta = self.message_converter.to_num(ciphertext_chunks[i]) % p, self.message_converter.to_num(ciphertext_chunks[i + 1]) % p
+            print(f"original values: {encrypted_message[1][i // 2]}, converted values: {alpha, beta}")
+            # alpha, beta = encrypted_message[1][i // 2][0], encrypted_message[1][i // 2][1]
             m = pow(alpha, -a, p) * beta % p
-            plaintext_chunks.append(self.message_converter.to_str(m))
+            
+            converted_message = self.message_converter.to_str(m)
+            
+            plaintext_chunks.append(converted_message)
 
         # Join the chunks
         decrypted_message = "".join(plaintext_chunks)
@@ -179,13 +209,16 @@ class ElGamalEncryption:
 if __name__ == "__main__":
     encrypter = ElGamalEncryption(3, " abcdefghijklmnopqrstuvwxyz")
     message = "  the quick brown fox jumps over the lazy dog  "
+    message = encrypter.validateInput(message)
     print(f" Original message: |{message}|")
     
     keys = encrypter.generate_keys()
 
     encrypted_message = encrypter.encrypt(keys[0], message)
-    print(f"Encrypted message: {encrypted_message}")
+    print(f"Encrypted message string: {encrypted_message[0]}")
+    print(f"Encrypted message value: {encrypted_message[1]}")
 
     decrypted_message = encrypter.decrypt(keys, encrypted_message)
     print(f"Decrypted message: |{decrypted_message}|")
+
     print(f"Decrypted message is the same as original: {message == decrypted_message}")
